@@ -1,40 +1,78 @@
-import express from "express"
-import cors from "cors"
-import { Request, Response } from "express"
+import { APIGatewayProxyEvent, Context, APIGatewayProxyResult } from "aws-lambda";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import {
+  DynamoDBDocumentClient,
+  ScanCommand,
+  PutCommand,
+  GetCommand,
+  DeleteCommand,
+} from "@aws-sdk/lib-dynamodb";
 
-interface params {
-    id: string;
-    title: string;
-}
+const client = new DynamoDBClient({});
+const dynamo = DynamoDBDocumentClient.from(client);
 
-const PORT = 8080
-const app = express()
-app.use(express.json())
-app.use(cors())
+const tableName = "http-crud-tutorial-items";
 
-app.get("/", (req: Request<params>, res: Response) => {
-    res.json({
-        message: "server health check"
-    })
-})
+export const handler = async (
+  event: APIGatewayProxyEvent,
+  context: Context
+): Promise<APIGatewayProxyResult> => {
+  let body: any;
+  let statusCode = 200;
+  const headers = {
+    "Content-Type": "application/json",
+  };
 
-app.post("/item", (req: Request<params>, res: Response) => {
-    const { id, title }: { id: string; title: string } = req.body;
-    console.log(id, title)
-})
+  try {
+    const { httpMethod, path, pathParameters, body: requestBody } = event;
 
-app.get("/items", (req: Request<params>, res: Response) => {
+    if (httpMethod === "DELETE" && pathParameters?.id) {
+      await dynamo.send(
+        new DeleteCommand({
+          TableName: tableName,
+          Key: { id: pathParameters.id },
+        })
+      );
+      body = `Deleted item ${pathParameters.id}`;
+    } else if (httpMethod === "GET" && pathParameters?.id) {
+      const result = await dynamo.send(
+        new GetCommand({
+          TableName: tableName,
+          Key: { id: pathParameters.id },
+        })
+      );
+      body = result.Item;
+    } else if (httpMethod === "GET" && path === "/items") {
+      const scanResult = await dynamo.send(
+        new ScanCommand({ TableName: tableName })
+      );
+      body = scanResult.Items;
+    } else if (httpMethod === "PUT" && requestBody) {
+      const requestJSON = JSON.parse(requestBody);
+      await dynamo.send(
+        new PutCommand({
+          TableName: tableName,
+          Item: {
+            id: requestJSON.id,
+            price: requestJSON.price,
+            name: requestJSON.name,
+          },
+        })
+      );
+      body = `Put item ${requestJSON.id}`;
+    } else {
+      throw new Error(`Unsupported route: ${httpMethod} ${path}`);
+    }
+  } catch (err: any) {
+    statusCode = 400;
+    body = err.message;
+  } finally {
+    body = JSON.stringify(body);
+  }
 
-})
-
-app.put("/item/{id}", (req: Request<params>, res: Response) => {
-
-})
-
-app.delete("/item/{id}", (req: Request<params>, res: Response) => {
-
-})
-
-app.listen(PORT, () => {
-    console.log(`The server is running on port ${PORT}`)
-})
+  return {
+    statusCode,
+    body,
+    headers,
+  };
+};
