@@ -12,7 +12,6 @@ const TodoDisplay = () => {
   const [todos, setTodos] = useState<TodoType[]>([]);
   const [newTodo, setNewTodo] = useState<string>("");
 
-  // Fetch all tasks from the backend
   const fetchTodos = async () => {
     try {
       const response = await axios.get(apiUrl);
@@ -22,9 +21,8 @@ const TodoDisplay = () => {
     }
   };
 
-  // Add a new task
   const handleAddTodo = async () => {
-    if (!newTodo.trim()) return; // Prevent adding empty tasks
+    if (!newTodo.trim()) return;
     const newTask = {
       id: `todo${Math.random() * 1000}`,
       title: newTodo.trim(),
@@ -41,7 +39,6 @@ const TodoDisplay = () => {
     }
   };
 
-  // Delete a task
   const handleDeleteTodo = async (id: string) => {
     try {
       await axios.delete(`${apiUrl}/${id}`);
@@ -51,7 +48,6 @@ const TodoDisplay = () => {
     }
   };
 
-  // Fetch tasks on component mount
   useEffect(() => {
     fetchTodos();
   }, []);
